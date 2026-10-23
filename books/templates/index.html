@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="zh-hans">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if user.is_authenticated %}个人中心 - {% endif %}智能图书推荐与阅读分析系统</title>
+    <link href="https://cdn.staticfile.org/twitter-bootstrap/5.1.1/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css">
+    <style>
+        /* CSS变量定义：主题颜色 */
+        :root {
+            --primary-color: #4f46e5; /* 主色调：靛蓝色 */
+            --secondary-color: #7c3aed; /* 次要色：紫色 */
+            --success-color: #10b981; /* 成功色：绿色 */
+            --warning-color: #f59e0b; /* 警告色：橙色 */
+        }
+        
+        /* 全局样式：背景色和字体设置 */
+        body {
+            background-color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        
+        /* 导航栏样式：渐变背景和阴影效果 */
+        .navbar {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)) !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* 品牌标识样式：加粗和大字体 */
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.4rem;
+        }
+        
+        /* 导航链接样式：过渡动画 */
+        .nav-link {
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        /* 导航链接悬停效果：向上移动 */
+        .nav-link:hover {
+            transform: translateY(-2px);
+        }
+        
+        /* 统一的导航栏头像样式 */
+        .nav-user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            transition: all 0.3s ease;
+            background-color: white;
+        }
+        .nav-user-avatar:hover {
+            transform: scale(1.1);
+            border-color: white;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .nav-avatar-text {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: white;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        
+        /* 统计卡片样式：白色背景、圆角、阴影、悬停动画 */
+        .stats-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            transition: all 0.3s;
+            border: none;
+        }
+        
+        /* 统计卡片悬停效果：向上移动和增强阴影 */
+        .stats-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        }
+        
+        /* 统计图标容器：尺寸、圆角、居中对齐 */
+        .stats-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 16px;
+        }
+        
+        /* 统计数值样式：大字体、加粗 */
+        .stats-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+        
+        /* 统计标签样式：灰色小字体 */
+        .stats-label {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+        
+        /* 图书卡片样式：白色背景、圆角、溢出隐藏、阴影 */
+        .book-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.3s;
+            border: none;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+        
+        /* 图书卡片悬停效果：向上移动和增强阴影 */
+        .book-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+        }
+        
+        /* 图书封面容器：固定高度、渐变背景、居中对齐 */
+        .book-cover {
+            height: 220px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 3rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* 封面图片样式：填充容器、保持比例 */
+        .book-cover img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        /* 图书徽章：右上角定位、半透明白色背景 */
+        .book-badge {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+        
+        /* 区块头部：两端对齐布局 */
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        /* 区块标题：大字体、加粗、带图标 */
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        /* 标题图标颜色：使用主色调 */
+        .section-title i {
+            color: var(--primary-color);
+        }
+        
+        /* 欢迎横幅：渐变背景、大圆角、相对定位（用于装饰元素） */
+        .welcome-banner {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            border-radius: 20px;
+            padding: 40px;
+            color: white;
+            margin-bottom: 32px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* 搜索框容器：白色背景、圆角、阴影 */
+        .search-box {
+            background: white;
+            border-radius: 12px;
+            padding: 16px 24px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        }
+        
+        /* 搜索输入框：边框、圆角、过渡动画 */
+        .search-input {
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 12px 20px;
+            transition: all 0.3s;
+        }
+        
+        /* 搜索框聚焦效果：主色调边框和光晕 */
+        .search-input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+        
+        /* 下拉菜单：无边框、阴影、圆角 */
+        .dropdown-menu {
+            border: none;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+            border-radius: 12px;
+        }
+        
+        /* 下拉菜单项：内边距、过渡动画 */
+        .dropdown-item {
+            padding: 10px 20px;
+            transition: all 0.2s;
+        }
+        
+        /* 下拉菜单项悬停：浅灰背景 */
+        .dropdown-item:hover {
+            background: #f1f5f9;
+        }
+        
+        /* 分类标签：胶囊形状、边框、悬停变色 */
+        .category-tag {
+            display: inline-block;
+            padding: 6px 16px;
+            background: white;
+            border-radius: 20px;
+            margin: 4px;
+            font-size: 0.85rem;
+            color: #475569;
+            border: 2px solid #e2e8f0;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        
+        /* 分类标签悬停：主色调背景和白色文字 */
+        .category-tag:hover {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        
+        /* 图书标题链接悬停：变为主色调 */
+        .book-title-link:hover {
+            color: var(--primary-color) !important;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark sticky-top shadow-sm">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="{% url 'home' %}">
+            <i class="bi bi-book-half me-2"></i>智能图书推荐系统
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link {% if request.path == '/' or request.resolver_match.url_name == 'home' %}active{% endif %}" href="{% url 'home' %}">
+                        <i class="bi bi-house-door me-1"></i>首页
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if '/discover/' in request.path or request.resolver_match.url_name == 'discover' %}active{% endif %}" href="{% url 'discover' %}">
+                        <i class="bi bi-compass me-1"></i>发现
+                    </a>
+                </li>
+                {% if user.is_authenticated %}
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'my_bookshelf' %}active{% endif %}" href="{% url 'my_bookshelf' %}">
+                        <i class="bi bi-bookshelf me-1"></i>书架
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'view_history' %}active{% endif %}" href="{% url 'view_history' %}">
+                        <i class="bi bi-clock-history me-1"></i>历史
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'my_activities' %}active{% endif %}" href="{% url 'my_activities' %}">
+                        <i class="bi bi-person-badge me-1"></i>足迹
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+
+            {% if user.is_authenticated %}
+            <ul class="navbar-nav">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle d-flex align-items-center gap-2 text-white" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        {% if user.profile and user.profile.avatar %}
+                            <img src="{{ user.profile.avatar.url }}" class="nav-user-avatar" alt="头像">
+                        {% else %}
+                            <div class="nav-avatar-text">{{ user.username|slice:":1"|upper }}</div>
+                        {% endif %}
+                        <span class="fw-semibold">{{ user.username }}</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end shadow border-0" aria-labelledby="userDropdown">
+                        <li><a class="dropdown-item py-2" href="{% url 'profile_settings' %}"><i class="bi bi-person me-2 text-primary"></i>个人资料</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item py-2 text-danger" href="{% url 'logout' %}"><i class="bi bi-box-arrow-right me-2"></i>退出登录</a></li>
+                    </ul>
+                </li>
+            </ul>
+            {% else %}
+            <div class="d-flex gap-2">
+                <a href="{% url 'login' %}" class="btn btn-light btn-sm fw-semibold px-3">登录</a>
+                <a href="{% url 'register' %}" class="btn btn-warning btn-sm fw-semibold px-3 text-dark">注册</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</nav>
+
+<div class="container py-4">
+    {% if user.is_authenticated %}
+    <div class="welcome-banner">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h2>👋 欢迎回来，{{ user.username }}！</h2>
+                <p class="mb-0 opacity-75">今天也是充满书香的一天，继续您的阅读之旅吧</p>
+            </div>
+            <div class="col-md-4 text-end d-none d-md-block">
+                <i class="bi bi-book" style="font-size: 5rem; opacity: 0.3;"></i>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row g-4 mb-5">
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stats-icon" style="background: #eef2ff; color: var(--primary-color);"><i
+                        class="bi bi-book"></i></div>
+                <div class="stats-value">{{ reading_stats.total_books|default:"0" }}</div>
+                <div class="stats-label">已读书籍</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stats-icon" style="background: #fef3c7; color: var(--warning-color);"><i
+                        class="bi bi-clock-history"></i></div>
+                <div class="stats-value">
+                    {% if reading_stats.total_minutes < 60 %}
+                    {{ reading_stats.total_minutes|default:"0" }}<span
+                        style="font-size: 1rem; font-weight: normal; margin-left: 2px;">m</span>
+                    {% else %}
+                    {{ reading_stats.total_hours|default:"0" }}<span
+                        style="font-size: 1rem; font-weight: normal; margin-left: 2px;">h</span>
+                    {% endif %}
+                </div>
+                <div class="stats-label">阅读时长</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stats-icon" style="background: #d1fae5; color: var(--success-color);"><i
+                        class="bi bi-star"></i></div>
+                <div class="stats-value">{{ reading_stats.avg_rating|default:"0.0" }}</div>
+                <div class="stats-label">平均评分</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stats-icon" style="background: #fce7f3; color: #ec4899;"><i
+                        class="bi bi-calendar-check"></i></div>
+                <div class="stats-value">{{ reading_stats.continuous_days|default:"0" }}</div>
+                <div class="stats-label">累计活跃天数</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="section-header">
+                <h3 class="section-title"><i class="bi bi-magic"></i> 为您推荐</h3>
+                <a href="{% url 'discover' %}" class="text-decoration-none fw-semibold">查看更多 <i
+                        class="bi bi-arrow-right"></i></a>
+            </div>
+            
+            <div class="card mb-4 border-0 shadow-sm"
+                 style="background: linear-gradient(135deg, #f8faff 0%, #ffffff 100%); border-left: 4px solid var(--primary-color) !important; border-radius: 12px;">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-start">
+                        <div class="flex-shrink-0 me-3">
+                            <i class="bi bi-robot text-primary" style="font-size: 2.2rem;"></i>
+                        </div>
+                        <div>
+                            <h5 class="fw-bold mb-2 text-primary">DeepSeek 智能导读</h5>
+                            <p id="ai-recommend-box" class="card-text text-secondary mb-0"
+                               style="line-height: 1.6; text-align: justify; font-size: 0.95rem;">
+                                <span class="spinner-border spinner-border-sm text-primary me-2" role="status"
+                                      aria-hidden="true"></span>
+                                AI馆长正在为您生成专属推荐，请稍候...
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row g-4 mb-5">
+                {% for book in recommend_books %}
+                <div class="col-md-6">
+                    <div class="book-card">
+                        <div class="book-cover">
+                            {% if book.pic_url %}
+                            <img src="/media/{{ book.pic_url }}" alt="{{ book.title }}">
+                            {% else %}
+                            <i class="bi bi-book"></i>
+                            {% endif %}
+                            <span class="book-badge">{{ book.category }}</span>
+                        </div>
+                        <div class="p-3">
+                            <h5 class="fw-bold mb-2">
+                                <a href="{% url 'book_detail' book.id %}"
+                                   class="text-dark text-decoration-none book-title-link">{{ book.title }}</a>
+                            </h5>
+                            <p class="text-muted small mb-2"><i class="bi bi-person me-1"></i>{{ book.author }}</p>
+                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                <a href="{% url 'book_detail' book.id %}" class="btn btn-sm btn-primary">查看详情</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-12 text-center py-5 bg-white rounded-3 shadow-sm">
+                    <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                    <p class="text-muted mt-3">完善您的阅读偏好，获取个性化推荐</p>
+                    <a href="{% url 'profile_settings' %}" class="btn btn-primary mt-2">设置偏好</a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+                <div class="card-header bg-white border-0 pt-4 pb-0">
+                    <h5 class="fw-bold mb-0"><i class="bi bi-graph-up me-2 text-primary"></i>本周阅读趋势</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="readingChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% else %}
+    <div class="search-box mb-4">
+        <div class="text-center mb-4">
+            <h2 class="fw-bold mb-3">发现您的下一本心仪之书</h2>
+            <p class="text-muted">智能推荐 · 精准匹配 · 海量图书</p>
+        </div>
+        <form action="{% url 'discover' %}" method="get" class="row g-2">
+            <div class="col-md-8">
+                <input type="text" name="q" class="form-control search-input" placeholder="搜索书名、作者、ISBN或分类..."
+                       value="{{ query|default:'' }}">
+            </div>
+            <div class="col-md-4">
+                <button class="btn btn-primary w-100 fw-semibold" type="submit"><i class="bi bi-search me-2"></i>搜索
+                </button>
+            </div>
+        </form>
+    </div>
+    
+    <div id="guestCarousel" class="carousel slide mb-5 shadow-sm" data-bs-ride="carousel" data-bs-interval="3000">
+        <div class="carousel-indicators">
+            <button type="button" data-bs-target="#guestCarousel" data-bs-slide-to="0" class="active"></button>
+            <button type="button" data-bs-target="#guestCarousel" data-bs-slide-to="1"></button>
+            <button type="button" data-bs-target="#guestCarousel" data-bs-slide-to="2"></button>
+        </div>
+        
+        <div class="carousel-inner" style="border-radius: 16px; overflow: hidden;">
+            <div class="carousel-item active">
+                <div class="d-block w-100"
+                     style="height: 350px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <div class="d-flex align-items-center justify-content-center h-100 text-white">
+                        <div class="text-center px-4">
+                            <i class="bi bi-stars" style="font-size: 4rem;"></i>
+                            <h2 class="mt-3 fw-bold">智能推荐算法</h2>
+                            <p class="lead">基于您的阅读偏好，精准推荐心仪好书</p>
+                            <a href="{% url 'register' %}" class="btn btn-light btn-lg mt-3 fw-semibold">立即体验</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="carousel-item">
+                <div class="d-block w-100"
+                     style="height: 350px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <div class="d-flex align-items-center justify-content-center h-100 text-white">
+                        <div class="text-center px-4">
+                            <i class="bi bi-graph-up-arrow" style="font-size: 4rem;"></i>
+                            <h2 class="mt-3 fw-bold">阅读数据分析</h2>
+                            <p class="lead">可视化展示您的阅读习惯和成长轨迹</p>
+                            <a href="{% url 'login' %}" class="btn btn-light btn-lg mt-3 fw-semibold">登录查看</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="carousel-item">
+                <div class="d-block w-100"
+                     style="height: 350px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                    <div class="d-flex align-items-center justify-content-center h-100 text-white">
+                        <div class="text-center px-4">
+                            <i class="bi bi-book-half" style="font-size: 4rem;"></i>
+                            <h2 class="mt-3 fw-bold">海量图书资源</h2>
+                            <p class="lead">涵盖编程、文学、科幻等多个领域</p>
+                            <a href="{% url 'discover' %}" class="btn btn-light btn-lg mt-3 fw-semibold">浏览图书</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <button class="carousel-control-prev" type="button" data-bs-target="#guestCarousel" data-bs-slide="prev">
+            <span class="carousel-control-prev-icon"></span>
+        </button>
+        <button class="carousel-control-next" type="button" data-bs-target="#guestCarousel" data-bs-slide="next">
+            <span class="carousel-control-next-icon"></span>
+        </button>
+    </div>
+    
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="section-header">
+                <h3 class="section-title"><i class="bi bi-fire"></i> 热门推荐</h3>
+            </div>
+            <div class="row g-4">
+                {% for book in hot_books %}
+                <div class="col-md-6">
+                    <div class="book-card">
+                        <div class="book-cover">
+                            {% if book.pic_url %}
+                            <img src="/media/{{ book.pic_url }}" alt="{{ book.title }}">
+                            {% else %}
+                            <i class="bi bi-book"></i>
+                            {% endif %}
+                            <span class="book-badge">TOP {{ forloop.counter }}</span>
+                        </div>
+                        <div class="p-3">
+                            <h5 class="fw-bold mb-2">
+                                <a href="{% url 'book_detail' book.id %}"
+                                   class="text-dark text-decoration-none book-title-link">{{ book.title }}</a>
+                            </h5>
+                            <p class="text-muted small mb-2"><i class="bi bi-person me-1"></i>{{ book.author }}</p>
+                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                <span class="badge bg-info">{{ book.category }}</span>
+                                <a href="{% url 'book_detail' book.id %}"
+                                   class="btn btn-sm btn-outline-primary">查看详情</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-12 text-center py-4 text-muted">暂无热门推荐</div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-stars text-primary" style="font-size: 3rem;"></i>
+                    <h5 class="fw-bold mt-3 mb-2">开启您的阅读之旅</h5>
+                    <a href="{% url 'login' %}" class="btn btn-primary w-100 mb-2 mt-3">立即登录</a>
+                    <a href="{% url 'register' %}" class="btn btn-outline-primary w-100">免费注册</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    /* 悬浮聊天按钮：固定在右下角、渐变背景、悬停放大 */
+    .chat-launcher {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        width: 60px;
+        height: 60px;
+        z-index: 1050;
+        transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        border: none;
+    }
+    
+    /* 聊天按钮悬停效果 */
+    .chat-launcher:hover {
+        transform: scale(1.1);
+    }
+    
+    /* 聊天窗口主容器：阴影、圆角、初始隐藏、滑入动画 */
+    #chatWindow {
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15) !important;
+        border-radius: 24px !important;
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        background: #fff;
+        display: none;
+        position: fixed;
+        bottom: 100px;
+        right: 30px;
+        width: 360px;
+        z-index: 1050;
+        overflow: hidden;
+        animation: chatSlideUp 0.3s ease-out;
+    }
+    
+    /* 聊天窗口滑入动画关键帧 */
+    @keyframes chatSlideUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px) scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+    
+    /* 聊天窗口顶部栏：渐变背景 */
+    .chat-header-custom {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        padding: 16px 20px;
+    }
+    
+    /* 聊天头像容器：半透明背景、毛玻璃效果 */
+    .chat-avatar {
+        width: 38px;
+        height: 38px;
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(5px);
+        border: 2px solid rgba(255, 255, 255, 0.8);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+    }
+    
+    /* 聊天消息区域：背景色、固定高度、可滚动、垂直布局 */
+    .chat-body-custom {
+        background-color: #f8fafc;
+        height: 350px;
+        overflow-y: auto;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    
+    /* 自定义细滚动条：Webkit浏览器专用 */
+    .chat-body-custom::-webkit-scrollbar {
+        width: 5px;
+    }
+    
+    .chat-body-custom::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    
+    .chat-body-custom::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 10px;
+    }
+    
+    .chat-body-custom::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+    
+    /* 消息气泡通用样式：最大宽度、内边距、阴影、自动换行 */
+    .msg-bubble {
+        max-width: 85%;
+        padding: 12px 16px;
+        font-size: 0.95rem;
+        line-height: 1.5;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        word-wrap: break-word;
+    }
+    
+    /* AI馆长的消息气泡（左侧）：白色背景、特殊圆角 */
+    .msg-ai {
+        background: #ffffff;
+        color: #334155;
+        border-radius: 20px 20px 20px 4px;
+        border: 1px solid #e2e8f0;
+    }
+    
+    /* 用户的消息气泡（右侧）：渐变背景、白色文字、特殊圆角 */
+    .msg-user {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        color: #ffffff;
+        border-radius: 20px 20px 4px 20px;
+    }
+    
+    /* 聊天底部输入区：白色背景、上边框 */
+    .chat-footer-custom {
+        background: #ffffff;
+        padding: 15px 20px;
+        border-top: 1px solid #f1f5f9;
+    }
+    
+    /* 聊天输入框：圆角、浅灰背景、聚焦变色 */
+    .chat-input-custom {
+        border-radius: 20px;
+        background: #f1f5f9;
+        border: 1px solid transparent;
+        padding: 10px 18px;
+        font-size: 0.95rem;
+        transition: all 0.3s;
+    }
+    
+    /* 输入框聚焦效果：白色背景、主色调边框、光晕 */
+    .chat-input-custom:focus {
+        background: #ffffff;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+    
+    /* 发送按钮：圆形、主色调、悬停放大 */
+    .send-btn-custom {
+        border-radius: 50%;
+        width: 42px;
+        height: 42px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--primary-color);
+        color: white;
+        border: none;
+        transition: transform 0.2s, background 0.2s;
+        flex-shrink: 0;
+    }
+    
+    /* 发送按钮悬停效果 */
+    .send-btn-custom:hover {
+        transform: scale(1.05);
+        background: var(--secondary-color);
+    }
+    
+    /* 发送按钮禁用状态：灰色、不可点击 */
+    .send-btn-custom:disabled {
+        background: #cbd5e1;
+        cursor: not-allowed;
+        transform: none;
+    }
+</style>
+
+<button id="chatBtn" class="btn btn-primary rounded-circle shadow-lg chat-launcher" title="召唤 AI 馆长">
+    <i class="bi bi-robot fs-4"></i>
+</button>
+
+<div id="chatWindow">
+    <div class="chat-header-custom d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+            <div class="chat-avatar me-3">
+                <i class="bi bi-robot fs-5"></i>
+            </div>
+            <div class="text-white">
+                <h6 class="mb-0 fw-bold" style="letter-spacing: 0.5px;">AI 图书馆长</h6>
+                <small style="font-size: 0.75rem; opacity: 0.8;"><i class="bi bi-circle-fill text-success"
+                                                                    style="font-size: 0.5rem; vertical-align: middle; margin-right: 4px;"></i>随时为您服务</small>
+            </div>
+        </div>
+        <button id="closeChatBtn" class="btn btn-link text-white p-0 text-decoration-none" style="opacity: 0.8;"><i
+                class="bi bi-x-lg fs-5"></i></button>
+    </div>
+    
+    <div id="chatBox" class="chat-body-custom">
+        <div class="d-flex justify-content-start">
+            <div class="msg-bubble msg-ai">
+                你好！我是 DeepSeek 图书馆长。📚<br>无论你是遇到了找书的困难，还是想了解某些知识，都可以直接问我哦。
+            </div>
+        </div>
+    </div>
+    
+    <div class="chat-footer-custom">
+        <div class="d-flex gap-2">
+            <input type="text" id="chatInput" class="form-control chat-input-custom" placeholder="输入您的问题..."
+                   autocomplete="off">
+            <button id="sendChatBtn" class="send-btn-custom shadow-sm"><i class="bi bi-send-fill"></i></button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% if user.is_authenticated %}
+<script>
+    // 初始化阅读趋势图表
+    const ctx = document.getElementById('readingChart');
+    if (ctx) {
+        new Chart(ctx, {
+            type: 'line',  // 折线图类型
+            data: {
+                labels: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],  // X轴标签
+                datasets: [{
+                    label: '阅读时长(分钟)',  // 数据系列名称
+                    data: {{ chart_data.durations|safe|default:"[0,0,0,0,0,0,0]" }},  // 接入后端的真实数据
+                    borderColor: '#4f46e5',  // 线条颜色
+                    backgroundColor: 'rgba(79, 70, 229, 0.1)',  // 填充颜色
+                    tension: 0.4,  // 曲线平滑度
+                    fill: true  // 启用填充
+                }]
+            },
+            options: {
+                responsive: true,  // 响应式图表
+                plugins: {legend: {display: false}},  // 隐藏图例
+                scales: {
+                    y: {beginAtZero: true, grid: {display: false}},  // Y轴从0开始，隐藏网格线
+                    x: {grid: {display: false}}  // 隐藏X轴网格线
+                }
+            }
+        });
+    }
+    
+    // AI推荐语加载：页面加载完成后调用API
+    document.addEventListener("DOMContentLoaded", function () {
+        const aiBox = document.getElementById("ai-recommend-box");
+        if (aiBox) {
+            fetch("{% url 'api_ai_recommend' %}")
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            // 成功：将换行符替换为<br>标签并显示
+                            aiBox.innerHTML = data.reason.replace(/\n/g, '<br>');
+                        } else {
+                            // API返回失败
+                            aiBox.innerHTML = "AI 推荐生成失败，请稍后再试。";
+                        }
+                    })
+                    .catch(error => {
+                        // 网络错误处理
+                        console.error("获取 AI 推荐失败:", error);
+                        aiBox.innerHTML = "网络请求失败，无法加载 AI 推荐。";
+                    });
+        }
+    });
+</script>
+{% endif %}
+
+<script>
+    // 聊天功能模块：使用IIFE避免污染全局命名空间
+    (function () {
+        // 获取DOM元素引用
+        const chatBtn = document.getElementById('chatBtn');
+        const chatWindow = document.getElementById('chatWindow');
+        const closeChatBtn = document.getElementById('closeChatBtn');
+        const sendChatBtn = document.getElementById('sendChatBtn');
+        const chatInput = document.getElementById('chatInput');
+        const chatBox = document.getElementById('chatBox');
+        let chatHistory = [];  // 聊天记录数组
+        
+        // 安全检查：如果聊天按钮不存在则退出
+        if (!chatBtn) return;
+        
+        // 开关聊天窗口：点击悬浮按钮显示/隐藏
+        chatBtn.onclick = () => {
+            chatWindow.style.display = chatWindow.style.display === 'none' || chatWindow.style.display === '' ? 'block' : 'none';
+            if (chatWindow.style.display === 'block') {
+                chatInput.focus();  // 打开时自动聚焦输入框
+            }
+        };
+        // 关闭聊天窗口
+        closeChatBtn.onclick = () => chatWindow.style.display = 'none';
+        
+        // 发送消息处理函数
+        sendChatBtn.onclick = async () => {
+            const msg = chatInput.value.trim();
+            if (!msg) return;  // 空消息不发送
+            
+            // 禁用输入控件防止重复提交
+            sendChatBtn.disabled = true;
+            chatInput.disabled = true;
+            
+            // 1. 渲染用户消息（右侧气泡）
+            chatBox.insertAdjacentHTML('beforeend', `
+                <div class="d-flex justify-content-end">
+                    <div class="msg-bubble msg-user">${msg}</div>
+                </div>`);
+            chatInput.value = '';  // 清空输入框
+            chatBox.scrollTop = chatBox.scrollHeight;  // 滚动到底部
+            
+            // 2. 渲染AI思考中动画（左侧呼吸灯）
+            const loadingId = 'loading-' + Date.now();
+            chatBox.insertAdjacentHTML('beforeend', `
+                <div id="${loadingId}" class="d-flex justify-content-start">
+                    <div class="msg-bubble msg-ai text-muted d-flex align-items-center">
+                        <div class="spinner-grow spinner-grow-sm text-primary me-2" role="status" style="width: 1rem; height: 1rem;"></div>
+                        <span style="font-size: 0.85rem;">馆长正在思考...</span>
+                    </div>
+                </div>`);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            
+            // 将用户消息添加到历史记录
+            chatHistory.push({role: "user", content: msg});
+            
+            try {
+                // 3. 发起API请求
+                const response = await fetch('/api/chat/', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                    body: JSON.stringify({history: chatHistory})
+                });
+                const data = await response.json();
+                
+                // 移除思考动画
+                document.getElementById(loadingId)?.remove();
+                
+                // 解析AI回复：过滤掉<think>标签内容
+                let finalReply = data.reply || "抱歉，馆长的网络好像有点问题，请重试。";
+                finalReply = finalReply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+                
+                // 4. 渲染AI消息（左侧气泡）
+                chatBox.insertAdjacentHTML('beforeend', `
+                    <div class="d-flex justify-content-start">
+                        <div class="msg-bubble msg-ai">${finalReply.replace(/\n/g, '<br>')}</div>
+                    </div>`);
+                chatBox.scrollTop = chatBox.scrollHeight;
+                
+                // 将AI回复添加到历史记录
+                chatHistory.push({role: "assistant", content: finalReply});
+            } catch (err) {
+                // 网络错误处理：移除动画并显示错误提示
+                document.getElementById(loadingId)?.remove();
+                chatBox.insertAdjacentHTML('beforeend', `
+                    <div class="d-flex justify-content-center my-2">
+                        <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-3 fw-normal">网络请求失败，请稍后再试</span>
+                    </div>`);
+            } finally {
+                // 恢复输入控件状态
+                sendChatBtn.disabled = false;
+                chatInput.disabled = false;
+                chatInput.focus();
+            }
+        };
+        
+        // 回车键发送支持
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendChatBtn.click();
+        });
+    })();
+</script>
+</body>
+</html>

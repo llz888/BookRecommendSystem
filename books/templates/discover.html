@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-hans">
+<head>
+    <meta charset="UTF-8">
+    <meta name="referrer" content="no-referrer">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>发现图书 - 智能图书推荐系统</title>
+    
+    <link href="https://cdn.staticfile.org/twitter-bootstrap/5.1.1/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+            --secondary-color: #7c3aed;
+        }
+        
+        body {
+            background-color: #f8fafc;
+        }
+        
+        /* 统一的导航栏头像样式 */
+        .nav-user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            transition: all 0.3s ease;
+            background-color: white;
+        }
+        
+        .nav-user-avatar:hover {
+            transform: scale(1.1);
+            border-color: white;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .nav-avatar-text {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: white;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        
+        .navbar {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)) !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .book-card {
+            transition: all 0.3s;
+            border: none;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            border-radius: 12px;
+        }
+        
+        .book-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+        }
+        
+        .book-cover {
+            height: 200px;
+            background: #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .book-cover img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+        
+        .book-cover:hover img {
+            transform: scale(1.05);
+        }
+        
+        .list-group-item.active {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .book-title-link {
+            color: #212529;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        
+        .book-title-link:hover {
+            color: var(--primary-color);
+        }
+        
+        /* AI 聊天窗样式 */
+        #chatWindow {
+            display: none;
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            width: 350px;
+            height: 500px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .chat-header-custom {
+            background: var(--primary-color);
+            padding: 15px;
+        }
+        
+        .chat-body-custom {
+            height: 380px;
+            overflow-y: auto;
+            padding: 15px;
+            background: #f8f9fa;
+        }
+        
+        .chat-footer-custom {
+            padding: 10px;
+            border-top: 1px solid #eee;
+        }
+        
+        .msg-bubble {
+            padding: 8px 12px;
+            border-radius: 15px;
+            margin-bottom: 10px;
+            max-width: 85%;
+            font-size: 14px;
+        }
+        
+        .msg-ai {
+            background: white;
+            border: 1px solid #ddd;
+        }
+        
+        .msg-user {
+            background: var(--primary-color);
+            color: white;
+            margin-left: auto;
+        }
+        
+        .chat-launcher {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            z-index: 1000;
+        }
+        
+        /* 评分滑块样式 */
+        .filter-section {
+            background: #fff;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark sticky-top shadow-sm">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="{% url 'home' %}">
+            <i class="bi bi-book-half me-2"></i>智能图书推荐系统
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link {% if request.path == '/' or request.resolver_match.url_name == 'home' %}active{% endif %}"
+                       href="{% url 'home' %}">
+                        <i class="bi bi-house-door me-1"></i>首页
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if '/discover/' in request.path or request.resolver_match.url_name == 'discover' %}active{% endif %}"
+                       href="{% url 'discover' %}">
+                        <i class="bi bi-compass me-1"></i>发现
+                    </a>
+                </li>
+                {% if user.is_authenticated %}
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'my_bookshelf' %}active{% endif %}"
+                       href="{% url 'my_bookshelf' %}">
+                        <i class="bi bi-bookshelf me-1"></i>书架
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'view_history' %}active{% endif %}"
+                       href="{% url 'view_history' %}">
+                        <i class="bi bi-clock-history me-1"></i>历史
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'my_activities' %}active{% endif %}"
+                       href="{% url 'my_activities' %}">
+                        <i class="bi bi-person-badge me-1"></i>足迹
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+
+            {% if user.is_authenticated %}
+            <ul class="navbar-nav">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle d-flex align-items-center gap-2 text-white" href="#"
+                       id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        {% if user.profile and user.profile.avatar %}
+                            <img src="{{ user.profile.avatar.url }}" class="nav-user-avatar" alt="头像">
+                        {% else %}
+                            <div class="nav-avatar-text">{{ user.username|slice:":1"|upper }}</div>
+                        {% endif %}
+                        <span class="fw-semibold">{{ user.username }}</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end shadow border-0" aria-labelledby="userDropdown">
+                        <li><a class="dropdown-item py-2" href="{% url 'profile_settings' %}"><i
+                                class="bi bi-person me-2 text-primary"></i>个人资料</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item py-2 text-danger" href="{% url 'logout' %}"><i
+                                class="bi bi-box-arrow-right me-2"></i>退出登录</a></li>
+                    </ul>
+                </li>
+            </ul>
+            {% else %}
+            <div class="d-flex gap-2">
+                <a href="{% url 'login' %}" class="btn btn-light btn-sm fw-semibold px-3">登录</a>
+                <a href="{% url 'register' %}" class="btn btn-warning btn-sm fw-semibold px-3 text-dark">注册</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</nav>
+
+<div class="container py-4">
+    <div class="row">
+        <div class="col-md-3 mb-4">
+            <div class="card shadow-sm border-0" style="border-radius: 12px;">
+                <div class="card-header bg-white fw-bold py-3"><i
+                        class="bi bi-tags me-2 text-primary"></i>图书分类</div>
+                <div class="list-group list-group-flush">
+                    <a href="{% url 'discover' %}"
+                       class="list-group-item list-group-item-action {% if not current_category %}active{% endif %}">全部图书</a>
+                    {% for item in new_categories %}
+                    <a href="{% url 'discover' %}?category={{ item.name|urlencode }}&min_score={{ min_score }}"
+                       class="list-group-item list-group-item-action {% if item.is_active %}active{% endif %}">
+                        {{ item.name }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-9">
+            <div class="card shadow-sm border-0 mb-4" style="border-radius: 12px;">
+                <div class="card-body">
+                    <form method="GET" action="{% url 'discover' %}" id="searchForm" class="w-100">
+                        <div class="input-group input-group-lg shadow-sm mb-4"
+                             style="border-radius: 12px; overflow: hidden;">
+                            <select name="category" class="form-select bg-light border-0" style="max-width: 180px;">
+                                <option value="">全部分类</option>
+                                {% for item in new_categories %}
+                                <option value="{{ item.name }}" {% if item.is_active %}selected{% endif %}>{{ item.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="d-flex align-items-center bg-light">
+                                <div style="height: 60%; width: 1px; background-color: #cbd5e1;"></div>
+                            </div>
+                            <input type="text" name="q" class="form-control border-0 ps-3"
+                                   placeholder="输入书名、作者或关键字..." value="{{ query }}">
+                            <button type="submit" class="btn btn-primary px-4 fw-bold"><i class="bi bi-search me-1"></i>搜索</button>
+                        </div>
+
+                        <div class="d-flex align-items-center gap-3 bg-light p-3 rounded-3">
+                            <span class="text-dark fw-bold small"><i class="bi bi-star-fill text-warning me-1"></i> 评分筛选:</span>
+                            <input type="range" name="min_score" class="form-range" min="0" max="5" step="0.5"
+                                   value="{{ min_score|default:0 }}" id="scoreRange" style="max-width: 250px;">
+                            <span class="badge bg-primary rounded-pill px-3" id="scoreLabel">{{ min_score|default:0 }} 分以上</span>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="row g-4">
+                {% for book in books %}
+                <div class="col-md-4">
+                    <div class="card book-card h-100">
+                        <div class="book-cover">
+                            <a href="{% url 'book_detail' book.id %}"
+                               class="d-block w-100 h-100 text-center text-decoration-none">
+                                {% if book.pic_url %}
+                                <img src="/media/{{ book.pic_url }}" alt="{{ book.title }}">
+                                {% else %}
+                                <i class="bi bi-image" style="font-size: 3rem; line-height: 200px; color: #cbd5e1;"></i>
+                                {% endif %}
+                            </a>
+                        </div>
+                        <div class="card-body">
+                            <h6 class="fw-bold mb-1 text-truncate" title="{{ book.title }}">
+                                <a href="{% url 'book_detail' book.id %}" class="book-title-link">{{ book.title }}</a>
+                            </h6>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <p class="text-muted small mb-0"><i class="bi bi-person me-1"></i>{{ book.author }}</p>
+                                <span class="text-warning small fw-bold">
+                                    <i class="bi bi-star-fill"></i> {{ book.avg_score|default:"0.0"|floatformat:1 }}
+                                </span>
+                            </div>
+                            <span class="badge bg-light text-dark border">{{ book.category }}</span>
+                        </div>
+                        <div class="card-footer bg-white border-0 text-center pb-3">
+                            <a href="{% url 'book_detail' book.id %}"
+                               class="btn btn-outline-primary btn-sm w-100">查看详情</a>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-12 text-center py-5">
+                    <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                    <p class="text-muted mt-3">没有找到符合评分条件的图书</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<button id="chatBtn" class="chat-launcher btn btn-primary rounded-circle shadow-lg"><i
+        class="bi bi-robot fs-4"></i></button>
+
+<div id="chatWindow">
+    <div class="chat-header-custom d-flex justify-content-between align-items-center text-white">
+        <div class="d-flex align-items-center"><i class="bi bi-robot fs-4 me-3"></i>
+            <div><h6 class="mb-0 fw-bold">AI 图书馆长</h6><small>在线服务中</small></div>
+        </div>
+        <button id="closeChatBtn" class="btn btn-link text-white p-0"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div id="chatBox" class="chat-body-custom">
+        <div class="d-flex justify-content-start">
+            <div class="msg-bubble msg-ai">你好！我是 DeepSeek 图书馆长。📚 有什么可以帮你的？</div>
+        </div>
+    </div>
+    <div class="chat-footer-custom d-flex gap-2">
+        <input type="text" id="chatInput" class="form-control rounded-pill" placeholder="输入您的问题..."
+               autocomplete="off">
+        <button id="sendChatBtn" class="btn btn-primary rounded-circle"><i class="bi bi-send-fill"></i></button>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    (function () {
+        // --- AI 聊天逻辑 ---
+        const chatBtn = document.getElementById('chatBtn');
+        const chatWindow = document.getElementById('chatWindow');
+        const closeChatBtn = document.getElementById('closeChatBtn');
+        const sendChatBtn = document.getElementById('sendChatBtn');
+        const chatInput = document.getElementById('chatInput');
+        const chatBox = document.getElementById('chatBox');
+        let chatHistory = [];
+        
+        chatBtn.onclick = () => chatWindow.style.display = (chatWindow.style.display === 'none' || chatWindow.style.display === '') ? 'flex' : 'none';
+        closeChatBtn.onclick = () => chatWindow.style.display = 'none';
+        
+        sendChatBtn.onclick = async () => {
+            const msg = chatInput.value.trim();
+            if (!msg) return;
+            chatBox.insertAdjacentHTML('beforeend', `<div class="d-flex justify-content-end"><div class="msg-bubble msg-user">${msg}</div></div>`);
+            chatInput.value = '';
+            chatBox.scrollTop = chatBox.scrollHeight;
+            chatHistory.push({role: "user", content: msg});
+            try {
+                const response = await fetch('/api/chat/', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                    body: JSON.stringify({history: chatHistory})
+                });
+                const data = await response.json();
+                let finalReply = (data.reply || "馆长开小差了...").replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+                chatBox.insertAdjacentHTML('beforeend', `<div class="d-flex justify-content-start"><div class="msg-bubble msg-ai">${finalReply.replace(/\n/g, '<br>')}</div></div>`);
+                chatBox.scrollTop = chatBox.scrollHeight;
+                chatHistory.push({role: "assistant", content: finalReply});
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendChatBtn.click();
+        });
+        
+        // --- 评分过滤交互逻辑 ---
+        const scoreRange = document.getElementById('scoreRange');
+        const scoreLabel = document.getElementById('scoreLabel');
+        const searchForm = document.getElementById('searchForm');
+        
+        scoreRange.oninput = function () {
+            scoreLabel.innerText = this.value + " 分以上";
+        };
+        
+        // 停止滑动时自动搜索
+        scoreRange.onchange = function () {
+            searchForm.submit();
+        };
+    })();
+</script>
+</body>
+</html>

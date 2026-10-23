@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-hans">
+<head>
+    <meta charset="UTF-8">
+    <title>编辑图书 - 管理后台</title>
+    <link href="https://cdn.staticfile.org/twitter-bootstrap/5.1.1/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding: 40px;
+        }
+        
+        .form-container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 700px;
+            margin: auto;
+        }
+        
+        .preview-img {
+            width: 100px;
+            height: 140px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="form-container shadow-sm">
+    <div class="d-flex align-items-center mb-4 pb-3 border-bottom">
+        <a href="{% url 'custom_admin_books' %}" class="btn btn-light rounded-circle me-3"><i
+                class="bi bi-arrow-left"></i></a>
+        <h4 class="fw-bold mb-0">编辑图书信息</h4>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        
+        <div class="text-center mb-4">
+            <p class="small text-muted mb-2">当前封面</p>
+            {% if book.pic_url %}
+                <img src="/media/{{ book.pic_url }}" class="preview-img shadow-sm">
+            {% else %}
+                <div class="bg-light mx-auto d-flex align-items-center justify-content-center text-muted"
+                     style="width:100px; height:140px; border-radius:8px;">无封面</div>
+            {% endif %}
+        </div>
+
+        <div class="row g-3">
+            {% for field in form %}
+                <div class="col-md-6">
+                    <label class="form-label fw-bold small text-muted">{{ field.label }}</label>
+                    {{ field }}
+                </div>
+            {% endfor %}
+        </div>
+        
+        <div class="mt-5 border-top pt-4 text-end">
+            <a href="{% url 'custom_admin_books' %}" class="btn btn-light px-4 me-2">取消修改</a>
+            <button type="submit" class="btn btn-primary px-5 shadow-sm">提交更新</button>
+        </div>
+    </form>
+</div>
+
+</body>
+</html>

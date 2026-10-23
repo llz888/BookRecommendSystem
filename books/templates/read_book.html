@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-hans">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ book.title }} - 阅读</title>
+    <link href="https://cdn.staticfile.org/twitter-bootstrap/5.1.1/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            background-color: #f4f1ea;
+            color: #2c3e50;
+            font-family: "Georgia", "Times New Roman", "Songti SC", "SimSun", serif;
+        }
+
+        .reader-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fffdf8;
+            min-height: 100vh;
+            box-shadow: 0 0 20px rgba(0,0,0,0.05);
+            padding-bottom: 80px;
+            position: relative;
+        }
+
+        .reader-header {
+            padding: 15px 20px;
+            border-bottom: 1px dashed #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #fffdf8;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        /* 调整后的章节标题样式，使其在顶部居中且突出 */
+        .chapter-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #34495e;
+            margin: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .reader-content {
+            padding: 40px;
+            font-size: 1.2rem;
+            line-height: 2;
+            text-align: justify;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            transition: opacity 0.3s ease;
+        }
+
+        .reader-footer {
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px dashed #e2e8f0;
+            background-color: #fffdf8;
+        }
+
+        .progress-text {
+            font-size: 0.85rem;
+            color: #95a5a6;
+            font-family: -apple-system, sans-serif;
+        }
+
+        .offcanvas-start {
+            width: 320px;
+            background-color: #f8fafc;
+        }
+        .toc-item {
+            border: none;
+            background: transparent;
+            padding: 12px 20px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #475569;
+            transition: all 0.2s;
+            font-family: -apple-system, sans-serif;
+            cursor: pointer;
+        }
+        .toc-item:hover, .toc-item.active {
+            background-color: #e2e8f0;
+            color: #0f172a;
+            font-weight: 600;
+        }
+        .toc-page-badge {
+            font-size: 0.75rem;
+            background-color: #cbd5e1;
+            color: #475569;
+            border-radius: 12px;
+            padding: 2px 8px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 1100; margin-top: 20px;">
+    <div id="progressToast" class="toast align-items-center text-white bg-success border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body" style="font-size: 1.05rem; font-family: -apple-system, sans-serif;">
+                <i class="bi bi-check-circle-fill me-2"></i>已为您自动跳转到上次阅读进度（第 {{ current_page }} 页）
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+<div class="offcanvas offcanvas-start" tabindex="-1" id="tocOffcanvas" aria-labelledby="tocOffcanvasLabel">
+    <div class="offcanvas-header border-bottom bg-white">
+        <h5 class="offcanvas-title fw-bold" id="tocOffcanvasLabel"><i class="bi bi-list-ul me-2"></i>目录</h5>
+        <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body p-0">
+        <div class="list-group list-group-flush" id="tocContainer">
+            {% if toc %}
+                {% for item in toc %}
+                <a href="javascript:void(0);" onclick="goToTocPage({{ item.page }}, event)" class="list-group-item list-group-item-action toc-item d-flex justify-content-between align-items-center {% if current_chapter == item.title %}active{% endif %}">
+                    <span class="text-truncate me-3" style="max-width: 80%;" title="{{ item.title }}">{{ item.title }}</span>
+                    <span class="toc-page-badge">{{ item.page }}</span>
+                </a>
+                {% endfor %}
+            {% else %}
+                <div class="p-5 text-center text-muted font-sans">未能解析到章节目录</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="reader-container">
+    <div class="reader-header shadow-sm">
+        <div style="flex: 1;">
+            {% if user.is_authenticated %}
+                <a href="{% url 'my_bookshelf' %}" class="btn btn-outline-secondary btn-sm" style="border-radius: 20px; font-family: -apple-system, sans-serif;">
+                    <i class="bi bi-arrow-left"></i> 书架
+                </a>
+            {% else %}
+                <a href="javascript:void(0);" onclick="smartBack()" class="btn btn-outline-secondary btn-sm" style="border-radius: 20px; font-family: -apple-system, sans-serif;">
+                    <i class="bi bi-arrow-left"></i> 退出
+                </a>
+            {% endif %}
+        </div>
+
+        <div style="flex: 2; text-align: center;">
+            <div class="chapter-title" id="chapterTitle">{{ current_chapter }}</div>
+        </div>
+
+        <div style="flex: 1; text-align: right;">
+            <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#tocOffcanvas" style="border-radius: 20px; font-family: -apple-system, sans-serif;">
+                <i class="bi bi-list"></i> 目录
+            </button>
+        </div>
+    </div>
+
+    <div class="reader-content" id="readerContent">
+        {{ content }}
+    </div>
+
+    <div class="reader-footer">
+        <div id="prevBtnContainer">
+            {% if has_previous %}
+                <button onclick="loadPage({{ current_page|add:'-1' }})" class="btn btn-primary" style="border-radius: 20px; padding: 6px 24px;"><i class="bi bi-chevron-left me-1"></i>上一页</button>
+            {% else %}
+                <button class="btn btn-secondary disabled" style="border-radius: 20px; padding: 6px 24px;">已经是第一页</button>
+            {% endif %}
+        </div>
+
+        <div class="progress-text" id="progressText">
+            第 {{ current_page }} / {{ total_pages }} 页
+        </div>
+
+        <div id="nextBtnContainer">
+            {% if has_next %}
+                <button onclick="loadPage({{ current_page|add:'1' }})" class="btn btn-primary" style="border-radius: 20px; padding: 6px 24px;">下一页<i class="bi bi-chevron-right ms-1"></i></button>
+            {% else %}
+                <button class="btn btn-secondary disabled" style="border-radius: 20px; padding: 6px 24px;">全书完</button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.staticfile.org/twitter-bootstrap/5.1.1/js/bootstrap.bundle.min.js"></script>
+<script>
+    // AJAX 无刷新翻页与时长记录逻辑保持不变
+    function smartBack() {
+        let ref = document.referrer;
+        if (ref.includes('read') || ref === '') {
+            window.location.href = "{% url 'discover' %}";
+        } else {
+            history.back();
+        }
+    }
+
+    function loadPage(page) {
+        const contentDiv = document.getElementById('readerContent');
+        contentDiv.style.opacity = '0.4';
+
+        fetch(`?page=${page}`, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            contentDiv.innerHTML = data.content;
+            contentDiv.style.opacity = '1';
+            document.getElementById('chapterTitle').innerText = data.current_chapter;
+            document.getElementById('progressText').innerText = `第 ${data.current_page} / ${data.total_pages} 页`;
+
+            const prevContainer = document.getElementById('prevBtnContainer');
+            if (data.has_previous) {
+                prevContainer.innerHTML = `<button onclick="loadPage(${data.current_page - 1})" class="btn btn-primary" style="border-radius: 20px; padding: 6px 24px;"><i class="bi bi-chevron-left me-1"></i>上一页</button>`;
+            } else {
+                prevContainer.innerHTML = `<button class="btn btn-secondary disabled" style="border-radius: 20px; padding: 6px 24px;">已经是第一页</button>`;
+            }
+
+            const nextContainer = document.getElementById('nextBtnContainer');
+            if (data.has_next) {
+                nextContainer.innerHTML = `<button onclick="loadPage(${data.current_page + 1})" class="btn btn-primary" style="border-radius: 20px; padding: 6px 24px;">下一页<i class="bi bi-chevron-right ms-1"></i></button>`;
+            } else {
+                nextContainer.innerHTML = `<button class="btn btn-secondary disabled" style="border-radius: 20px; padding: 6px 24px;">全书完</button>`;
+            }
+
+            window.history.pushState({page: data.current_page}, '', `?page=${data.current_page}`);
+            window.scrollTo({top: 0, behavior: 'smooth'});
+
+            document.querySelectorAll('.toc-item').forEach(item => {
+                item.classList.remove('active');
+                if (item.innerText.includes(data.current_chapter)) {
+                    item.classList.add('active');
+                }
+            });
+        })
+        .catch(err => {
+            console.error('翻页请求失败:', err);
+            contentDiv.style.opacity = '1';
+        });
+    }
+
+    window.onpopstate = function(event) {
+        if (event.state && event.state.page) {
+            loadPage(event.state.page);
+        } else {
+            location.reload();
+        }
+    };
+
+    function goToTocPage(page, event) {
+        if(event) event.preventDefault();
+        loadPage(page);
+        const tocCanvas = bootstrap.Offcanvas.getInstance(document.getElementById('tocOffcanvas'));
+        if(tocCanvas) tocCanvas.hide();
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // 【新增逻辑】如果当前页码大于 1，说明是从历史进度恢复的，触发弹窗提示
+        {% if current_page > 1 %}
+        var toastEl = document.getElementById('progressToast');
+        if (toastEl) {
+            // delay: 3500 表示弹窗停留 3.5 秒后自动消失
+            var toast = new bootstrap.Toast(toastEl, { delay: 3500 });
+            toast.show();
+        }
+        {% endif %}
+
+        // 原有的阅读时长统计计时器保持不变
+        {% if user.is_authenticated %}
+        setInterval(function() {
+            fetch("{% url 'update_reading_time' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    'book_id': '{{ book.id }}',
+                    'minutes': 1
+                })
+            }).catch(error => console.error('Time record error:', error));
+        }, 60000);
+        {% endif %}
+    });
+</script>
+</body>
+</html>

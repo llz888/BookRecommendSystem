@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-hans">
+<head>
+    <meta charset="UTF-8">
+    <title>编辑用户 - 管理后台</title>
+    <link href="https://cdn.staticfile.org/twitter-bootstrap/5.1.1/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding: 30px;
+        }
+        
+        .edit-container {
+            max-width: 800px;
+            margin: auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+        }
+        
+        .section-title {
+            border-left: 4px solid #4f46e5;
+            padding-left: 10px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        
+        .user-preview-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+    </style>
+</head>
+<body>
+
+<div class="edit-container shadow-sm">
+    <div class="d-flex align-items-center mb-4 pb-3 border-bottom">
+        <a href="{% url 'custom_admin_user_list' %}" class="btn btn-light rounded-circle me-3"><i
+                class="bi bi-arrow-left"></i></a>
+        <h4 class="fw-bold mb-0">编辑读者资料</h4>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div class="section-title text-primary">基本信息</div>
+        <div class="row g-3 mb-4">
+            <div class="col-md-3 text-center">
+                {% if profile.avatar %}
+                    <img src="{{ profile.avatar.url }}" class="user-preview-avatar mb-2 shadow-sm">
+                {% endif %}
+                <div class="small text-muted mb-2">更改头像</div>
+                <input type="file" name="avatar" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-9">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">用户名 (不可更改)</label>
+                        <input type="text" class="form-control bg-light" value="{{ profile.user.username }}" readonly>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">昵称</label>
+                        <input type="text" name="nickname" class="form-control"
+                               value="{{ profile.nickname|default:'' }}">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small fw-bold">个人简介</label>
+                        <textarea name="bio" class="form-control" rows="2">{{ profile.bio|default:'' }}</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title text-danger">安全与权限设置</div>
+        <div class="card bg-light border-0 mb-4">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">重置密码</label>
+                        <input type="password" name="new_password" class="form-control" placeholder="留空则不修改密码">
+                        <div class="form-text">若用户忘记密码，可在此处直接重置。</div>
+                    </div>
+                    <div class="col-md-6 d-flex align-items-center ps-md-5">
+                        <div class="form-check form-switch mt-3">
+                            <input class="form-check-input" type="checkbox" name="is_approved" id="approveCheck"
+                                   {% if profile.is_approved %}checked{% endif %} style="width: 3em; height: 1.5em;">
+                            <label class="form-check-label ms-2 fw-bold" for="approveCheck">审核通过 / 激活账号</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-end pt-3 border-top">
+            <a href="{% url 'custom_admin_user_list' %}" class="btn btn-light px-4 me-2">取消</a>
+            <button type="submit" class="btn btn-primary px-5 shadow-sm">保存所有更改</button>
+        </div>
+    </form>
+</div>
+
+<script src="https://cdn.staticfile.org/twitter-bootstrap/5.1.1/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
