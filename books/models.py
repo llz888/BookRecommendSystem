@@ -79,7 +79,6 @@ class ReadingLog(models.Model):
 
     # 该字段已包含 verbose_name
     read_duration = models.IntegerField(default=0, verbose_name="阅读时长(分钟)")
-    updated_at = models.DateTimeField(auto_now=True)  # 每次 save() 时自动更新时间
     # 为日期字段添加 verbose_name
     last_read_date = models.DateTimeField(auto_now=True, verbose_name="最近阅读时间")
 
@@ -101,6 +100,9 @@ class UserProfile(models.Model):
 
     # 对应开题报告：个人信息管理中的头像
     avatar = models.ImageField(upload_to='avatars/', default='default.png', verbose_name="头像")
+
+    nickname = models.CharField(max_length=50, blank=True, default='', verbose_name="昵称")
+    bio = models.TextField(blank=True, default='', verbose_name="个人简介")
 
     # 新增：记录偏好分类（动态计算的结果）
     fav_category = models.CharField(max_length=100, default="未分类", verbose_name="最爱阅读类型")
@@ -158,8 +160,6 @@ class Shelf(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="用户")
     book = models.ForeignKey(Book, on_delete=models.CASCADE, verbose_name="图书")
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='WANT', verbose_name="状态")
-    # 记录阅读到第几页（用于“在读”状态）
-    last_page = models.IntegerField(default=1, verbose_name="最后阅读页码")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新时间")
     current_page = models.IntegerField('当前页码', default=0)
     total_pages = models.IntegerField('总页码', default=0)

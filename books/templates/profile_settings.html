@@ -79,8 +79,8 @@
             
             <div class="dropdown">
                 <div class="d-flex align-items-center gap-2 dropdown-toggle text-white" data-bs-toggle="dropdown" style="cursor: pointer;">
-                    {% if user.userprofile and user.userprofile.avatar %}
-                        <img src="{{ user.userprofile.avatar.url }}" class="nav-avatar">
+                    {% if user.profile and user.profile.avatar %}
+                        <img src="{{ user.profile.avatar.url }}" class="nav-avatar">
                     {% else %}
                         <i class="bi bi-person-circle fs-5"></i>
                     {% endif %}
@@ -106,8 +106,8 @@
                     {% csrf_token %}
                     
                     <div class="text-center mb-4">
-                        {% if user.userprofile and user.userprofile.avatar %}
-                            <img src="{{ user.userprofile.avatar.url }}" class="profile-avatar-preview" id="avatarPreview">
+                        {% if user.profile and user.profile.avatar %}
+                            <img src="{{ user.profile.avatar.url }}" class="profile-avatar-preview" id="avatarPreview">
                         {% else %}
                             <div class="profile-avatar-preview bg-primary d-flex align-items-center justify-content-center mx-auto text-white fw-bold fs-1" id="avatarPlaceholder">
                                 {{ user.username|slice:":1"|upper }}
@@ -129,13 +129,13 @@
                     <div class="mb-3">
                         <label for="nickname" class="form-label text-muted small fw-bold">昵称</label>
                         <input type="text" name="nickname" id="nickname" class="form-control"
-                               value="{{ user.userprofile.nickname|default:'' }}" placeholder="设置一个好听的昵称">
+                               value="{{ user.profile.nickname|default:'' }}" placeholder="设置一个好听的昵称">
                     </div>
 
                     <div class="mb-4">
                         <label for="bio" class="form-label text-muted small fw-bold">个人简介</label>
                         <textarea name="bio" id="bio" class="form-control" rows="3"
-                                  placeholder="介绍一下你自己...">{{ user.userprofile.bio|default:'' }}</textarea>
+                                  placeholder="介绍一下你自己...">{{ user.profile.bio|default:'' }}</textarea>
                     </div>
 
                     <div class="d-grid">

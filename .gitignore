@@ -7,6 +7,7 @@ staticfiles/
 db.sqlite3
 db.sqlite3.bak
 books_backup.json
+*.sql
 
 # 用户上传的头像（含他人照片，不公开）
 media/avatars/*

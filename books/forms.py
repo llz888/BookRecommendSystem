@@ -4,7 +4,6 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 
 from .models import Book
-from .models import UserProfile
 
 
 class UserRegisterForm(UserCreationForm):
@@ -26,57 +25,6 @@ class UserRegisterForm(UserCreationForm):
         super().__init__(*args, **kwargs)
         self.fields['password1'].help_text = "密码长度不低于 8 位。"
         self.fields['password2'].help_text = "请再次输入密码以确认。"
-
-
-class UserProfileForm(forms.ModelForm):
-    """个人资料设置表单"""
-    # 显式添加 Email 字段，用于同步修改 User 表的数据
-    email = forms.EmailField(
-        label="电子邮箱",
-        required=True,
-        widget=forms.EmailInput(attrs={'class': 'form-control'})
-    )
-
-    class Meta:
-        model = UserProfile
-        # 对应 models.py 中的实际字段
-        fields = ['avatar', 'favorite_categories']
-        labels = {
-            'avatar': '上传头像',
-            'favorite_categories': '偏好分类',
-        }
-        widgets = {
-            'avatar': forms.FileInput(attrs={'class': 'form-control'}),
-            'favorite_categories': forms.TextInput(attrs={
-                'placeholder': '例如：编程, 文学, 科幻 (用逗号隔开)',
-                'class': 'form-control'
-            }),
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # 页面加载时，将 User 表中的当前邮箱作为初始值
-        if self.instance and self.instance.user:
-            self.fields['email'].initial = self.instance.user.email
-
-    def clean_email(self):
-        """防止邮箱被其他用户占用"""
-        email = self.cleaned_data.get('email')
-        user = self.instance.user
-        if User.objects.filter(email=email).exclude(pk=user.pk).exists():
-            raise ValidationError("该邮箱已被其他用户注册。")
-        return email
-
-    def save(self, commit=True):
-        """同步保存 UserProfile 和 User 的邮箱"""
-        profile = super().save(commit=False)
-        user = profile.user
-        # 将表单中的 email 赋值给关联的 user 对象
-        user.email = self.cleaned_data['email']
-        user.save()
-        if commit:
-            profile.save()
-        return profile
 
 
 class BookForm(forms.ModelForm):

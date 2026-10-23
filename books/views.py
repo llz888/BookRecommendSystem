@@ -278,10 +278,16 @@ def profile_settings(request):
         try:
             # 3. 更新 UserProfile 字段
             # 注意：不要去动 request.user.username，除非你确实想改用户名
-            user_profile.nickname = nickname
-            user_profile.bio = bio
+            user_profile.nickname = nickname or ''
+            user_profile.bio = bio or ''
 
             if avatar:
+                if avatar.size > 2 * 1024 * 1024:
+                    messages.error(request, "头像大小不能超过 2MB")
+                    return redirect('profile_settings')
+                if not (avatar.content_type or '').startswith('image/'):
+                    messages.error(request, "头像必须是图片文件")
+                    return redirect('profile_settings')
                 user_profile.avatar = avatar
 
             # 4. 仅保存 Profile 对象
@@ -336,13 +342,6 @@ def admin_dashboard(request):
         'pie_data': pie_data,
         'bar_labels': bar_labels,
         'bar_values': bar_values,
-    }
-    return render(request, 'admin_dashboard.html', context)
-    context = {
-        'total_users': total_users,
-        'total_books': total_books,
-        'chart_labels': date_labels,  # 传递动态日期标签
-        'chart_values': chart_values,  # 传递动态统计数值
     }
     return render(request, 'admin_dashboard.html', context)
 
@@ -706,7 +705,11 @@ def submit_comment(request, book_id):
     """提交书评或回复"""
     if request.method == "POST":
         book = get_object_or_404(Book, id=book_id)
-        score = request.POST.get('score', 5)
+        try:
+            score = int(request.POST.get('score', 5))
+        except (TypeError, ValueError):
+            score = 5
+        score = max(1, min(5, score))
         comment_text = request.POST.get('comment', '').strip()
         parent_id = request.POST.get('parent_id') or None  # 回复时传入父评论 id
 
