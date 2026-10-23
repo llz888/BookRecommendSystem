@@ -3,7 +3,7 @@ import json
 import math
 import re
 from django.conf import settings
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
@@ -314,9 +314,10 @@ def admin_dashboard(request):
     date_list = [today - timedelta(days=i) for i in range(6, -1, -1)]
     date_labels = [d.strftime('%m-%d') for d in date_list]
 
-    # 查询最近7天的阅读历史记录，按天统计浏览量
+    # 用日期时间下界过滤，避免 DATE(viewed_at) 包住索引列导致索引失效
+    start_dt = timezone.make_aware(datetime.combine(date_list[0], time.min))
     daily_stats = ReadingHistory.objects.filter(
-        viewed_at__date__gte=date_list[0]
+        viewed_at__gte=start_dt
     ).annotate(date=TruncDate('viewed_at')).values('date').annotate(count=Count('id'))
     # 将查询结果映射为字典 {datetime.date: count}
     stats_map = {item['date']: item['count'] for item in daily_stats}

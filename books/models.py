@@ -8,7 +8,7 @@ class Book(models.Model):
     title = models.CharField(max_length=200, verbose_name="书名")
     author = models.CharField(max_length=100, verbose_name="作者")
     isbn = models.CharField(max_length=20, unique=True, verbose_name="ISBN")
-    category = models.CharField(max_length=50, verbose_name="分类")
+    category = models.CharField(max_length=50, db_index=True, verbose_name="分类")
     description = models.TextField(verbose_name="简介")
     # --- 修改这里：将 URLField 改为 CharField，避免 URL 格式校验 ---
     pic_url = models.CharField(max_length=255, blank=True, verbose_name="封面图链接/路径")
@@ -86,6 +86,10 @@ class ReadingLog(models.Model):
         # 定义模型在后台显示的单数和复数名称
         verbose_name = "阅读日志"
         verbose_name_plural = "阅读日志管理"
+        # 个人阅读趋势按「用户 + 日期范围」查询，联合索引避免回表扫描
+        indexes = [
+            models.Index(fields=['user', 'last_read_date'], name='rl_user_date_idx'),
+        ]
 
     def __str__(self):
         return f"{self.user.username} - {self.book.title} 的阅读记录"
@@ -178,3 +182,9 @@ class ReadingHistory(models.Model):
     class Meta:
         ordering = ['-viewed_at']
         unique_together = ('user', 'book')  # 保证同一个用户看同一本书只占一条记录，仅更新时间
+        indexes = [
+            # 后台按全站时间范围统计
+            models.Index(fields=['viewed_at'], name='rh_viewed_idx'),
+            # 个人浏览历史按时间倒序
+            models.Index(fields=['user', 'viewed_at'], name='rh_user_viewed_idx'),
+        ]

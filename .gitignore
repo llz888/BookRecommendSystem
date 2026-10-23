@@ -4,6 +4,7 @@ __pycache__/
 .idea/
 .env
 staticfiles/
+logs/
 db.sqlite3
 db.sqlite3.bak
 books_backup.json
