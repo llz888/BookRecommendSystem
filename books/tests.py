@@ -1,9 +1,12 @@
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, connection, transaction
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 
-from books.models import Book, Rating
+from books.forms import UserRegisterForm
+from books.models import Book, Rating, ReadingHistory, Shelf, UserProfile
 
 
 def make_book(isbn, title='测试书'):
@@ -82,3 +85,116 @@ class BookDetailQueryCountTests(TestCase):
             Rating.objects.create(user=reader, book=self.book, score=5, comment='评论')
         after = self.get_detail_query_count()
         self.assertEqual(before, after, '评论数增加后 SQL 条数发生了变化，疑似 N+1 回归')
+
+
+class UserProfileStatsTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='stats', password='pass12345')
+        self.profile = UserProfile.objects.create(user=self.user)
+        lit1 = make_book('STATS-1')
+        lit2 = make_book('STATS-2')
+        tech = make_book('STATS-3', title='科技书')
+        tech.category = '科技'
+        tech.save()
+        Rating.objects.create(user=self.user, book=lit1, score=5, comment='a')
+        Rating.objects.create(user=self.user, book=lit2, score=4, comment='b')
+        Rating.objects.create(user=self.user, book=tech, score=3, comment='c')
+        ReadingHistory.objects.create(user=self.user, book=lit1)
+        ReadingHistory.objects.create(user=self.user, book=tech)
+
+    def test_update_stats_computes_category_and_count(self):
+        self.profile.update_stats()
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.fav_category, '文学')
+        self.assertEqual(self.profile.total_books_read, 2)
+
+
+class ShelfRuleTests(TestCase):
+    def test_duplicate_shelf_entry_rejected(self):
+        user = User.objects.create_user(username='shelf', password='pass12345')
+        book = make_book('SHELF-1')
+        Shelf.objects.create(user=user, book=book)
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Shelf.objects.create(user=user, book=book)
+
+    def test_reading_history_keeps_single_row(self):
+        user = User.objects.create_user(username='history', password='pass12345')
+        book = make_book('HIST-1')
+        for _ in range(3):
+            ReadingHistory.objects.update_or_create(
+                user=user, book=book, defaults={'viewed_at': timezone.now()},
+            )
+        self.assertEqual(ReadingHistory.objects.filter(user=user, book=book).count(), 1)
+
+
+class UserRegisterFormTests(TestCase):
+    def test_short_password_rejected(self):
+        form = UserRegisterForm(data={
+            'username': 'newuser', 'email': 'new@example.com',
+            'password1': '1234567', 'password2': '1234567',
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn('password1', form.errors)
+
+    def test_valid_registration_accepted(self):
+        form = UserRegisterForm(data={
+            'username': 'newuser', 'email': 'new@example.com',
+            'password1': '12345678', 'password2': '12345678',
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+
+
+class ProfileSettingsTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='profile', password='pass12345')
+        self.profile = UserProfile.objects.create(user=self.user)
+        self.client.force_login(self.user)
+
+    def test_nickname_and_bio_are_saved(self):
+        self.client.post('/profile/', {'nickname': '书虫', 'bio': '爱读书'})
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.nickname, '书虫')
+        self.assertEqual(self.profile.bio, '爱读书')
+
+    def test_non_image_avatar_rejected(self):
+        upload = SimpleUploadedFile('x.pdf', b'%PDF-1.4', content_type='application/pdf')
+        self.client.post('/profile/', {'nickname': 'a', 'bio': 'b', 'avatar': upload})
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.avatar.name, 'default.png')
+
+
+class CommentScoreTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='scorer', password='pass12345')
+        self.book = make_book('SCORE-1')
+        self.client.force_login(self.user)
+
+    def posted_score(self, score):
+        self.client.post(
+            f'/book/{self.book.id}/comment/',
+            {'score': score, 'comment': '评分测试'},
+        )
+        return Rating.objects.get(user=self.user, book=self.book, parent__isnull=True).score
+
+    def test_non_numeric_score_defaults_to_five(self):
+        self.assertEqual(self.posted_score('abc'), 5)
+
+    def test_score_above_range_clamped_to_five(self):
+        self.assertEqual(self.posted_score('99'), 5)
+
+    def test_score_below_range_clamped_to_one(self):
+        self.assertEqual(self.posted_score('-3'), 1)
+
+
+class AdminAccessTests(TestCase):
+    def test_staff_can_open_dashboard(self):
+        staff = User.objects.create_user(username='staff', password='pass12345', is_staff=True)
+        self.client.force_login(staff)
+        self.assertEqual(self.client.get('/my-admin/').status_code, 200)
+
+    def test_normal_user_cannot_open_dashboard(self):
+        user = User.objects.create_user(username='normal', password='pass12345')
+        self.client.force_login(user)
+        response = self.client.get('/my-admin/')
+        self.assertIn(response.status_code, (302, 403))
