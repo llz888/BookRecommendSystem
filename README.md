@@ -68,7 +68,7 @@
 | 前端 | Bootstrap 5.1、Bootstrap Icons、ECharts 5.3 |
 | AI | OpenAI 兼容接口（默认云端 API，可切换本地 Ollama） |
 | 部署 | Nginx + Gunicorn + systemd |
-| 质量保障 | Django TestCase（23 个用例）、GitHub Actions |
+| 质量保障 | Django TestCase（27 个用例）、GitHub Actions |
 
 ## 系统架构
 
@@ -123,11 +123,12 @@ erDiagram
 | 个人资料页失效 | 修正模板 `related_name`，补齐 `nickname` / `bio` 字段 | 头像、昵称、简介可正常保存与显示 |
 | 输入缺少校验 | 评分夹取到 1-5；头像限制大小与类型 | 异常请求不再产生 500 或脏数据 |
 | AI 接口无鉴权、可被刷 | 登录校验 + 每分钟限流 + 每用户每日配额（数据库条件更新原子扣减） | 未登录请求被拒；超限返回 429，缓存命中不消耗配额 |
+| 协同过滤每次请求全量重算 | 评分索引进程内缓存（TTL 60s）+ 共同物品候选剪枝 + numpy 向量化 | 40 万条评分下，单次推荐 50ms → 2ms（命中缓存），结果与旧实现完全一致 |
 
 ## 测试与持续集成
 
-- 23 个 `TestCase`，覆盖评论唯一性（应用层与数据库约束）、N+1 查询数防回归、用户统计逻辑、
-  书架与浏览历史去重、注册表单校验、评分夹取、后台权限、AI 接口鉴权与调用配额。
+- 27 个 `TestCase`，覆盖评论唯一性（应用层与数据库约束）、N+1 查询数防回归、用户统计逻辑、
+  书架与浏览历史去重、注册表单校验、评分夹取、后台权限、AI 接口鉴权与调用配额、协同过滤推荐结果。
 - GitHub Actions：每次推送自动启动 MySQL 8.0 服务容器，执行 `manage.py check` 与全部测试。
 
 ```bash
@@ -150,6 +151,7 @@ BookRecommendSystem/
 │   ├── migrations/               # 数据库迁移
 │   └── templates/                # 页面模板
 ├── .github/workflows/ci.yml      # 持续集成
+├── scripts/bench_recommender.py  # 推荐算法压测（40 万条合成评分）
 ├── media/                        # 封面等运行时文件
 ├── books.csv                     # 图书数据源
 ├── requirements.txt

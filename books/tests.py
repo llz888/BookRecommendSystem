@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from books.forms import UserRegisterForm
 from books.models import Book, Rating, ReadingHistory, Shelf, UserProfile
+from books.recommender import recommend_from_ratings
 
 
 def make_book(isbn, title='测试书'):
@@ -90,6 +91,31 @@ class BookDetailQueryCountTests(TestCase):
             Rating.objects.create(user=reader, book=self.book, score=5, comment='评论')
         after = self.get_detail_query_count()
         self.assertEqual(before, after, '评论数增加后 SQL 条数发生了变化，疑似 N+1 回归')
+
+
+class RecommenderTests(TestCase):
+    def test_empty_rows_returns_empty(self):
+        self.assertEqual(recommend_from_ratings([], 1), [])
+
+    def test_cold_start_returns_empty(self):
+        rows = [(2, 10, 5), (2, 11, 4)]
+        self.assertEqual(recommend_from_ratings(rows, 1), [])
+
+    def test_recommends_unseen_book_from_similar_user(self):
+        rows = [
+            (1, 10, 5), (1, 11, 4),
+            (2, 10, 5), (2, 11, 4), (2, 12, 5),
+            (3, 13, 5),
+        ]
+        self.assertEqual(
+            recommend_from_ratings(rows, 1, top_k_users=1, top_n_items=2), [12],
+        )
+
+    def test_seen_books_are_excluded(self):
+        rows = [(1, 10, 5), (2, 10, 5), (2, 11, 5)]
+        recs = recommend_from_ratings(rows, 1, top_k_users=1, top_n_items=2)
+        self.assertNotIn(10, recs)
+        self.assertIn(11, recs)
 
 
 class UserProfileStatsTests(TestCase):
