@@ -166,7 +166,7 @@ class ProfileSettingsTests(TestCase):
         upload = SimpleUploadedFile('x.pdf', b'%PDF-1.4', content_type='application/pdf')
         self.client.post('/profile/', {'nickname': 'a', 'bio': 'b', 'avatar': upload})
         self.profile.refresh_from_db()
-        self.assertEqual(self.profile.avatar.name, 'default.png')
+        self.assertEqual(self.profile.avatar.name, 'avatars/default.png')
 
 
 class CommentScoreTests(TestCase):
@@ -214,6 +214,10 @@ def fake_ai_client(reply='测试回复'):
     return types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
 
 
+LOCMEM_CACHE = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
+
+
+@override_settings(CACHES=LOCMEM_CACHE)
 class AIEndpointTests(TestCase):
     def setUp(self):
         cache.clear()

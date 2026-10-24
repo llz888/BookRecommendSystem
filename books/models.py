@@ -103,7 +103,7 @@ class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
 
     # 对应开题报告：个人信息管理中的头像
-    avatar = models.ImageField(upload_to='avatars/', default='default.png', verbose_name="头像")
+    avatar = models.ImageField(upload_to='avatars/', default='avatars/default.png', verbose_name="头像")
 
     nickname = models.CharField(max_length=50, blank=True, default='', verbose_name="昵称")
     bio = models.TextField(blank=True, default='', verbose_name="个人简介")
