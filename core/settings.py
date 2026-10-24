@@ -2,18 +2,28 @@
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+from django.core.management.utils import get_random_secret_key
+from dotenv import load_dotenv
+
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# 本地读取 .env（已被 .gitignore 忽略）；生产环境由 systemd 注入环境变量
+load_dotenv(BASE_DIR / '.env')
+
 # 环境变量控制：本地不设置也能跑（DEBUG=1），服务器上设 DJANGO_DEBUG=0
 DEBUG = os.environ.get('DJANGO_DEBUG', '1') == '1'
 
-# 生产环境必须通过 DJANGO_SECRET_KEY 注入一个全新的密钥，不要沿用下面这个开发密钥
-SECRET_KEY = os.environ.get(
-    'DJANGO_SECRET_KEY',
-    'django-insecure-el)&^e)-v0n=-*2px_2ktc=7q)0@%$@_j%2i#9(yjv)_ub^mdz',
-)
+# 密钥只从环境变量读取。开发环境缺失时随机生成（重启后会话失效），
+# 生产环境缺失则拒绝启动，避免带着开发密钥上线。
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = get_random_secret_key()
+    else:
+        raise ImproperlyConfigured('未设置 DJANGO_SECRET_KEY，生产环境拒绝启动。')
 
 ALLOWED_HOSTS = [
     h.strip()
@@ -67,7 +77,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': os.environ.get('DB_NAME', 'books_db'),
         'USER': os.environ.get('DB_USER', 'book_user'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'BookDev_2026'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
         'HOST': os.environ.get('DB_HOST', '127.0.0.1'),
         'PORT': os.environ.get('DB_PORT', '3306'),
         'OPTIONS': {
@@ -98,6 +108,26 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_SAVE_EVERY_REQUEST = True
+
+# ===== 缓存 =====
+# 生产环境设置 REDIS_URL 后使用 Redis，多个 worker 共享缓存与限流计数；
+# 本地未设置时退回进程内缓存，开发无需额外依赖。
+REDIS_URL = os.environ.get('REDIS_URL', '')
+if REDIS_URL:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': REDIS_URL,
+            'KEY_PREFIX': 'bookrec',
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'bookrec-locmem',
+        }
+    }
 
 # ===== 大模型配置 =====
 # 默认接入云端 OpenAI 兼容 API；本地 Ollama 可设 AI_BASE_URL=http://127.0.0.1:11434/v1/ 切回

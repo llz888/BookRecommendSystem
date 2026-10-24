@@ -22,10 +22,11 @@
 | 语言 / 框架 | Python 3.11、Django 5.2 |
 | 数据库 | MySQL 8.0（InnoDB、utf8mb4） |
 | 数据库驱动 | PyMySQL 1.1 |
+| 缓存 | Redis（可选，多进程共享缓存与限流计数） |
 | 前端 | Bootstrap 5.1、Bootstrap Icons、ECharts 5.3 |
 | AI | OpenAI 兼容接口（默认云端 API，可切换本地 Ollama） |
 | 部署 | Nginx + Gunicorn + systemd |
-| 质量保障 | Django TestCase（17 个用例）、GitHub Actions |
+| 质量保障 | Django TestCase（23 个用例）、GitHub Actions |
 
 ## 系统架构
 
@@ -36,6 +37,7 @@ flowchart LR
     N -->|"反向代理 :8000"| G["Gunicorn"]
     G --> D["Django 应用"]
     D --> M[("MySQL 8.0")]
+    D --> R[("Redis（可选）<br/>缓存与限流计数")]
     D --> A["OpenAI 兼容 API<br/>Ollama / DeepSeek"]
 ```
 
@@ -144,7 +146,19 @@ GRANT ALL PRIVILEGES ON `test_books_db`.* TO 'book_user'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
-`settings.py` 内置了与上面一致的本地开发默认值，不设环境变量即可直接运行。
+复制环境变量模板并填写本地数据库密码：
+
+```bash
+cp .env.example .env
+```
+
+`.env` 会被自动加载且不会提交到仓库。本地开发使用 `DJANGO_DEBUG=1`、`DB_PASSWORD=BookDev_2026`；未设置 `DJANGO_SECRET_KEY` 时开发模式会自动生成临时密钥，重启后需要重新登录。
+
+需要 Redis（多进程共享缓存与限流计数）时启动容器，并在 `.env` 中取消 `REDIS_URL` 的注释：
+
+```bash
+docker run -d --name bookrec-redis -p 6379:6379 redis:7-alpine
+```
 
 ### 3. 初始化数据
 
@@ -174,6 +188,7 @@ python manage.py runserver
 | `DJANGO_ALLOWED_HOSTS` | `127.0.0.1,localhost` | 生产环境填写服务器 IP 或域名 |
 | `DB_NAME` / `DB_USER` / `DB_PASSWORD` | `books_db` / `book_user` / 开发密码 | 数据库连接 |
 | `DB_HOST` / `DB_PORT` | `127.0.0.1` / `3306` | 数据库地址 |
+| `REDIS_URL` | 空 | 设置后缓存与限流计数走 Redis；为空时使用进程内缓存 |
 | `AI_BASE_URL` | `https://api.deepseek.com/v1` | OpenAI 兼容接口地址，可改回本地 Ollama |
 | `AI_API_KEY` | 空 | 云端 API 的 Key，未设置时 AI 功能返回友好提示 |
 | `AI_MODEL` | `deepseek-chat` | 模型名称 |

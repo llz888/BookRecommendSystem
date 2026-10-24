@@ -31,6 +31,7 @@ jobs:
       DB_HOST: 127.0.0.1
       DB_PORT: 3306
       DJANGO_DEBUG: "0"
+      DJANGO_SECRET_KEY: "ci-only-secret-key-please-change-in-production-0123456789"
       DJANGO_ALLOWED_HOSTS: "127.0.0.1,localhost,testserver"
 
     steps:
