@@ -100,12 +100,16 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_SAVE_EVERY_REQUEST = True
 
 # ===== 大模型配置 =====
-# 本地 Ollama 默认值；换成云端 API 时只需改这三个环境变量
-AI_BASE_URL = os.environ.get('AI_BASE_URL', 'http://127.0.0.1:11434/v1/')
-AI_API_KEY = os.environ.get('AI_API_KEY', 'ollama')
-AI_MODEL = os.environ.get('AI_MODEL', 'deepseek-r1:7b')
-# AI 生成可能很慢，客户端超时放宽到 120 秒
-AI_TIMEOUT = float(os.environ.get('AI_TIMEOUT', '120'))
+# 默认接入云端 OpenAI 兼容 API；本地 Ollama 可设 AI_BASE_URL=http://127.0.0.1:11434/v1/ 切回
+AI_BASE_URL = os.environ.get('AI_BASE_URL', 'https://api.deepseek.com/v1')
+AI_API_KEY = os.environ.get('AI_API_KEY', '')
+AI_MODEL = os.environ.get('AI_MODEL', 'deepseek-chat')
+# AI 生成可能较慢，客户端超时放宽到 60 秒
+AI_TIMEOUT = float(os.environ.get('AI_TIMEOUT', '60'))
+
+# 成本控制：每用户每分钟最多调用次数、每日配额
+AI_RATE_LIMIT_PER_MIN = int(os.environ.get('AI_RATE_LIMIT_PER_MIN', '5'))
+AI_DAILY_QUOTA = int(os.environ.get('AI_DAILY_QUOTA', '20'))
 
 # ===== 反向代理 / HTTPS =====
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

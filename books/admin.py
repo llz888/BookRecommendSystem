@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Book, UserProfile, Rating, ReadingLog
+from .models import AIUsage, Book, UserProfile, Rating, ReadingLog
 
 # 修改后台标题
 admin.site.site_header = '智能图书推荐与阅读分析系统 - 管理端'
@@ -46,3 +46,10 @@ class UserProfileAdmin(admin.ModelAdmin):
 # 注册其他模型，方便管理数据
 admin.site.register(Rating)
 admin.site.register(ReadingLog)
+
+
+@admin.register(AIUsage)
+class AIUsageAdmin(admin.ModelAdmin):
+    list_display = ('user', 'date', 'count')
+    list_filter = ('date',)
+    ordering = ('-date', 'user')

@@ -1,7 +1,10 @@
 import csv
 import json
+import logging
 import math
 import re
+from functools import wraps
+
 from django.conf import settings
 from datetime import datetime, time, timedelta
 
@@ -14,22 +17,24 @@ from django.contrib.auth.models import User
 from django.core.cache import cache  # 顶部引入缓存模块
 from django.core.paginator import Paginator  # 记得在顶部导入分页器
 from django.db import IntegrityError, transaction
-from django.db.models import Q, Count, Sum, Avg, Case, When, Prefetch
+from django.db.models import Q, Count, Sum, Avg, Case, When, F, Prefetch
 from django.db.models.functions import TruncDate
 from django.http import JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.safestring import mark_safe  # 导入用于渲染 HTML 的工具
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.http import require_POST
 from openai import OpenAI
 
 from .forms import BookForm  # 记得在顶部导入
 from .forms import UserRegisterForm
-from .models import Book, Rating, UserProfile, Shelf, ReadingLog, ReadingHistory
+from .models import AIUsage, Book, Rating, UserProfile, Shelf, ReadingLog, ReadingHistory
 from .recommender import get_user_cf_recommendations
 
 
+@ensure_csrf_cookie
 def index(request):
     """
     首页视图：
@@ -156,13 +161,62 @@ def index(request):
 # 大模型调用相关代码
 # ==========================================
 
-client = OpenAI(
-    base_url=settings.AI_BASE_URL,
-    api_key=settings.AI_API_KEY,
-    timeout=settings.AI_TIMEOUT,
-)
+logger = logging.getLogger(__name__)
+
+_ai_client = None
 
 
+def get_ai_client():
+    """懒加载 AI 客户端：未配置 API Key 时返回 None，避免模块导入即报错。"""
+    global _ai_client
+    if not settings.AI_API_KEY:
+        return None
+    if _ai_client is None:
+        _ai_client = OpenAI(
+            base_url=settings.AI_BASE_URL,
+            api_key=settings.AI_API_KEY,
+            timeout=settings.AI_TIMEOUT,
+        )
+    return _ai_client
+
+
+def api_login_required(view_func):
+    """API 专用登录校验：未登录返回 401 JSON，而不是 302 跳转登录页。"""
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            message = '请先登录后再使用 AI 功能。'
+            return JsonResponse({'status': 'error', 'reply': message, 'reason': message}, status=401)
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
+def check_ai_limits(user):
+    """AI 接口限流与配额：返回 None 表示放行，否则返回提示文案。"""
+    # 每分钟限流（本地缓存；多进程部署时应换成 Redis 共享计数）
+    minute_key = f'ai_rate_{user.id}_{int(timezone.now().timestamp() // 60)}'
+    try:
+        calls = cache.incr(minute_key)
+    except ValueError:
+        cache.set(minute_key, 1, timeout=60)
+        calls = 1
+    if calls > settings.AI_RATE_LIMIT_PER_MIN:
+        return '请求过于频繁，请稍后再试。'
+
+    # 每日配额：条件更新保证并发下也不会超发
+    today = timezone.localdate()
+    try:
+        usage, _ = AIUsage.objects.get_or_create(user=user, date=today, defaults={'count': 0})
+    except IntegrityError:
+        usage = AIUsage.objects.get(user=user, date=today)
+    updated = AIUsage.objects.filter(pk=usage.pk, count__lt=settings.AI_DAILY_QUOTA) \
+        .update(count=F('count') + 1)
+    if not updated:
+        return f'今日 AI 调用次数已用完（每日上限 {settings.AI_DAILY_QUOTA} 次）。'
+    return None
+
+
+@ensure_csrf_cookie
 def discover(request):
     """发现图书视图：支持分类、关键词和评分过滤"""
     query = request.GET.get('q', '').strip()
@@ -395,31 +449,32 @@ def book_detail(request, book_id):
 
 
 # 新增一个专门给前端异步调用的接口
-@login_required
-@login_required
+@api_login_required
 def api_get_ai_recommend(request):
-    """异步获取AI推荐语并缓存"""
+    """异步获取 AI 推荐语；命中缓存时不消耗配额。"""
     cache_key = f'ai_recommend_{request.user.id}'
 
-    # 1. 尝试从缓存读取
     ai_reason = cache.get(cache_key)
+    if ai_reason and "调用失败" not in ai_reason:
+        return JsonResponse({'status': 'success', 'reason': ai_reason})
 
-    # 2. 核心修改：如果缓存为空，或者缓存里存的是之前的报错信息，就强制重新调用
-    if not ai_reason or "调用失败" in ai_reason:
-        ai_reason = get_ai_recommendations(request.user)
+    error = check_ai_limits(request.user)
+    if error:
+        return JsonResponse({'status': 'error', 'reason': error}, status=429)
 
-        # 3. 只有在真正调用成功时，才把结果写入缓存 (防止脏数据又被存 12 小时)
-        if "调用失败" not in ai_reason:
-            cache.set(cache_key, ai_reason, timeout=43200)
-        else:
-            # 如果依然失败，就顺便把旧缓存清掉
-            cache.delete(cache_key)
-
+    ai_reason = get_ai_recommendations(request.user)
+    if "调用失败" in ai_reason:
+        cache.delete(cache_key)
+    else:
+        cache.set(cache_key, ai_reason, timeout=43200)
     return JsonResponse({'status': 'success', 'reason': ai_reason})
 
 
 def get_ai_recommendations(user):
-    """调用本地 DeepSeek 生成推荐语"""
+    """调用云端大模型生成推荐语"""
+    ai = get_ai_client()
+    if ai is None:
+        return "调用失败：未配置 AI 服务，请设置 AI_API_KEY。"
     try:
         # 1. 获取用户画像数据 (使用 get_or_create 更安全)
         # 1. 获取用户画像数据 (防弹写法)
@@ -444,44 +499,51 @@ def get_ai_recommendations(user):
         注意：直接输出推荐语，不要包含任何旁白或前言。
         """
 
-        # 3. 发送请求给本地 DeepSeek
-        response = client.chat.completions.create(
+        # 3. 发送请求给云端模型
+        response = ai.chat.completions.create(
             model=settings.AI_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
         )
         return response.choices[0].message.content
-    except Exception as e:
-        return f"调用失败，具体报错信息为：{str(e)}"
+    except Exception:
+        logger.exception("AI 推荐语生成失败")
+        return "调用失败：AI 服务暂时不可用，请稍后再试。"
 
 
-@csrf_exempt
+@api_login_required
+@require_POST
 def ai_chat_api(request):
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            # 💡 强制只取最后一条消息，不发历史记录，排除 Token 堆积导致的死机
-            full_history = data.get('history', [])
-            user_message = full_history[-1]['content'] if full_history else "你好"
+    """AI 图书问答：登录用户可用，受每分钟限流与每日配额约束。"""
+    error = check_ai_limits(request.user)
+    if error:
+        return JsonResponse({'status': 'error', 'reply': error}, status=429)
 
-            # 💡 增加系统指令，要求它不要思考，直接给结果
-            response = client.chat.completions.create(
-                model=settings.AI_MODEL,
-                messages=[
-                    {"role": "system", "content": "你是一个图书助手。请直接、简短地回答，不要输出思考过程。"},
-                    {"role": "user", "content": user_message}
-                ],
-                temperature=0.1,  # 降低随机性，减少资源占用
-                stream=False  # 💡 核心：强制非流式，一次性返回
-            )
+    ai = get_ai_client()
+    if ai is None:
+        return JsonResponse({'status': 'error', 'reply': 'AI 服务未配置，请联系管理员。'})
 
-            ai_reply = response.choices[0].message.content
-            return JsonResponse({'status': 'success', 'reply': ai_reply})
-        except Exception as e:
-            # 💡 这里的报错非常重要，请看 Django 运行的黑窗口
-            print(f"Ollama 调用异常: {e}")
-            return JsonResponse({'status': 'error', 'reply': f'模型响应超时，请重启Ollama。'})
-    return JsonResponse({'status': 'error', 'reply': '请求方式错误'})
+    try:
+        data = json.loads(request.body)
+        # 只取最后一条消息，避免历史记录堆积导致 token 消耗失控
+        full_history = data.get('history', [])
+        user_message = full_history[-1]['content'] if full_history else "你好"
+
+        response = ai.chat.completions.create(
+            model=settings.AI_MODEL,
+            messages=[
+                {"role": "system", "content": "你是一个图书助手。请直接、简短地回答，不要输出思考过程。"},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=0.1,
+            stream=False
+        )
+
+        ai_reply = response.choices[0].message.content
+        return JsonResponse({'status': 'success', 'reply': ai_reply})
+    except Exception:
+        logger.exception("AI 对话调用失败")
+        return JsonResponse({'status': 'error', 'reply': 'AI 服务暂时不可用，请稍后再试。'}, status=502)
 
 
 def read_book(request, book_id):
@@ -613,6 +675,7 @@ def read_book(request, book_id):
 
 
 @login_required
+@ensure_csrf_cookie
 def my_bookshelf(request):
     """书架视图：获取当前用户书架上的所有书籍"""
     # 获取所有书架项，并关联查询书籍信息，按最后更新时间倒序排列

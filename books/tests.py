@@ -1,7 +1,12 @@
+import json
+import types
+from unittest.mock import patch
+
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, connection, transaction
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
@@ -198,3 +203,61 @@ class AdminAccessTests(TestCase):
         self.client.force_login(user)
         response = self.client.get('/my-admin/')
         self.assertIn(response.status_code, (302, 403))
+
+
+def fake_ai_client(reply='测试回复'):
+    """构造一个不会真正发起网络请求的 AI 客户端替身。"""
+    def create(**kwargs):
+        return types.SimpleNamespace(
+            choices=[types.SimpleNamespace(message=types.SimpleNamespace(content=reply))]
+        )
+    return types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
+
+
+class AIEndpointTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(username='aiuser', password='pass12345')
+        self.client.force_login(self.user)
+
+    def post_chat(self):
+        return self.client.post(
+            '/api/chat/',
+            data=json.dumps({'history': [{'role': 'user', 'content': '你好'}]}),
+            content_type='application/json',
+        )
+
+    def test_anonymous_user_cannot_call_ai(self):
+        self.client.logout()
+        response = self.post_chat()
+        self.assertEqual(response.status_code, 401)
+        self.assertIn('登录', response.json()['reply'])
+
+    def test_anonymous_user_cannot_get_ai_recommendation(self):
+        self.client.logout()
+        response = self.client.get('/api/ai-recommend/')
+        self.assertEqual(response.status_code, 401)
+        self.assertIn('登录', response.json()['reply'])
+
+    def test_get_request_is_rejected(self):
+        self.assertEqual(self.client.get('/api/chat/').status_code, 405)
+
+    @override_settings(AI_DAILY_QUOTA=1, AI_RATE_LIMIT_PER_MIN=100)
+    @patch('books.views.get_ai_client')
+    def test_daily_quota_is_enforced(self, mock_get_client):
+        mock_get_client.return_value = fake_ai_client()
+        self.assertEqual(self.post_chat().status_code, 200)
+        self.assertEqual(self.post_chat().status_code, 429)
+
+    @override_settings(AI_RATE_LIMIT_PER_MIN=1, AI_DAILY_QUOTA=100)
+    @patch('books.views.get_ai_client')
+    def test_rate_limit_is_enforced(self, mock_get_client):
+        mock_get_client.return_value = fake_ai_client()
+        self.assertEqual(self.post_chat().status_code, 200)
+        self.assertEqual(self.post_chat().status_code, 429)
+
+    @override_settings(AI_API_KEY='')
+    def test_missing_api_key_returns_friendly_error(self):
+        response = self.post_chat()
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('未配置', response.json()['reply'])

@@ -847,8 +847,8 @@
                             // 成功：将换行符替换为<br>标签并显示
                             aiBox.innerHTML = data.reason.replace(/\n/g, '<br>');
                         } else {
-                            // API返回失败
-                            aiBox.innerHTML = "AI 推荐生成失败，请稍后再试。";
+                            // API返回失败（含未登录、超配额等情况）
+                            aiBox.innerHTML = data.reason || "AI 推荐生成失败，请稍后再试。";
                         }
                     })
                     .catch(error => {

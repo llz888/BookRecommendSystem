@@ -188,3 +188,19 @@ class ReadingHistory(models.Model):
             # 个人浏览历史按时间倒序
             models.Index(fields=['user', 'viewed_at'], name='rh_user_viewed_idx'),
         ]
+
+
+class AIUsage(models.Model):
+    """记录每个用户每天调用 AI 接口的次数，用于成本控制。"""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ai_usage', verbose_name="用户")
+    date = models.DateField(verbose_name="日期")
+    count = models.PositiveIntegerField(default=0, verbose_name="调用次数")
+
+    class Meta:
+        unique_together = ('user', 'date')
+        verbose_name = "AI 调用配额"
+        verbose_name_plural = "AI 调用配额"
+
+    def __str__(self):
+        return f"{self.user.username} {self.date} 已调用 {self.count} 次"
