@@ -218,8 +218,9 @@ python manage.py collectstatic --noinput
   `client_max_body_size 50m`（电子书上传）与 `proxy_read_timeout 300s`（AI 生成较慢）
 - 会话使用数据库存储，多 worker 部署下登录状态不会丢失
 - 在 `.env` 中配置 `AI_API_KEY`、`AI_DAILY_QUOTA` 与 `AI_RATE_LIMIT_PER_MIN`，控制模型调用成本
+- 服务器安装 Redis 并设置 `REDIS_URL`，缓存与限流计数即可在多 worker 间共享
 
 ## 说明
 
 - `media/avatars/` 与 `media/book_texts/` 未纳入仓库：前者含用户照片，后者为版权内容。
-- 仓库中内置的数据库密码与 `SECRET_KEY` 仅用于本地开发，生产部署必须通过环境变量覆盖。
+- 仓库中不包含任何密钥：本地配置放在被忽略的 `.env` 中，生产环境缺少 `DJANGO_SECRET_KEY` 时应用拒绝启动。
