@@ -5,6 +5,48 @@
 基于 Django + MySQL 的图书推荐与阅读管理平台，包含图书浏览与检索、评分评论、书架管理、
 阅读行为统计、后台数据管理与 AI 个性化推荐。
 
+## 在线访问
+
+- 地址：http://49.232.9.115
+- 部署环境：腾讯云轻量应用服务器（2 核 4G / 5M），Ubuntu 22.04
+- 访问方式：公网 IP 直连，暂未绑定域名与 HTTPS
+
+## 界面预览
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/home.png" width="440"></td>
+    <td><img src="docs/screenshots/discover.png" width="440"></td>
+  </tr>
+  <tr>
+    <td align="center">首页：推荐语与阅读统计</td>
+    <td align="center">发现页：分类、搜索与评分筛选</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/book-detail.png" width="440"></td>
+    <td><img src="docs/screenshots/book-shelf.png" width="440"></td>
+  </tr>
+  <tr>
+    <td align="center">书籍详情：评分、评论、回复与点赞</td>
+    <td align="center">书架：想读 / 在读 / 已读与进度</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/history.png" width="440"></td>
+    <td><img src="docs/screenshots/trail.png" width="440"></td>
+  </tr>
+  <tr>
+    <td align="center">浏览历史与阅读进度</td>
+    <td align="center">个人足迹：书评与点赞</td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><img src="docs/screenshots/dashboard.png" width="560"></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">后台：运营数据看板（阅读趋势、分类分布、热门图书）</td>
+  </tr>
+</table>
+
+
 ## 功能
 
 - **图书浏览与检索**：分类筛选、关键词搜索（书名 / 作者 / ISBN）、最低评分过滤
@@ -84,7 +126,7 @@ erDiagram
 
 ## 测试与持续集成
 
-- 22 个 `TestCase`，覆盖评论唯一性（应用层与数据库约束）、N+1 查询数防回归、用户统计逻辑、
+- 23 个 `TestCase`，覆盖评论唯一性（应用层与数据库约束）、N+1 查询数防回归、用户统计逻辑、
   书架与浏览历史去重、注册表单校验、评分夹取、后台权限、AI 接口鉴权与调用配额。
 - GitHub Actions：每次推送自动启动 MySQL 8.0 服务容器，执行 `manage.py check` 与全部测试。
 
@@ -206,19 +248,28 @@ AI_MODEL=deepseek-chat
 
 ## 部署
 
-生产环境采用 Nginx + Gunicorn + systemd：
+已部署至腾讯云轻量应用服务器（Ubuntu 22.04），运行架构：
+
+```
+浏览器 → Nginx(80) → Gunicorn(127.0.0.1:8000, 3 workers) → Django
+                                                          ├── MySQL 8.0
+                                                          └── Redis 6
+```
+
+- 代码目录 `/var/www/book`，独立虚拟环境 `.venv`，`collectstatic` 产物由 Nginx 托管
+- systemd 服务 `bookrec` 通过 `EnvironmentFile` 注入 `.env`，配置开机自启与异常重启
+- Nginx 直接响应 `/static/` 与 `/media/`，设置 `client_max_body_size 50m`（电子书上传）
+  与 `proxy_read_timeout 300s`（AI 生成较慢）
+- Redis 限制 128MB 内存并启用 LRU 淘汰，承载推荐语缓存与接口限流计数
+- 会话使用数据库存储，多 worker 部署下登录状态不会丢失
+- 每日 03:17 自动备份数据库（保留最近 7 天），备份文件位于 `/var/www/book/backups`
+
+手动部署时对应的关键命令：
 
 ```bash
 python manage.py collectstatic --noinput
-.venv/bin/gunicorn core.wsgi:application --bind 127.0.0.1:8000 --workers 3
+.venv/bin/gunicorn core.wsgi:application --bind 127.0.0.1:8000 --workers 3 --timeout 120
 ```
-
-- systemd 通过 `EnvironmentFile` 注入 `.env`，设置 `DJANGO_DEBUG=0` 与 `DJANGO_ALLOWED_HOSTS`
-- Nginx 负责 `/static/`、`/media/` 静态资源与反向代理，需设置
-  `client_max_body_size 50m`（电子书上传）与 `proxy_read_timeout 300s`（AI 生成较慢）
-- 会话使用数据库存储，多 worker 部署下登录状态不会丢失
-- 在 `.env` 中配置 `AI_API_KEY`、`AI_DAILY_QUOTA` 与 `AI_RATE_LIMIT_PER_MIN`，控制模型调用成本
-- 服务器安装 Redis 并设置 `REDIS_URL`，缓存与限流计数即可在多 worker 间共享
 
 ## 说明
 
